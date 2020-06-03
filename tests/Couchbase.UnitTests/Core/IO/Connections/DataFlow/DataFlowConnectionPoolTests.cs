@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Couchbase.Core.DI;
 using Couchbase.Core.IO.Connections;
 using Couchbase.Core.IO.Connections.DataFlow;
 using Couchbase.Core.IO.Operations;
@@ -77,6 +76,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             // Act
 
             await pool.SendAsync(operation);
+            await Task.Delay(100); // allow consumers to work
 
             // Assert
 
@@ -95,8 +95,13 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             await pool.InitializeAsync();
 
             var lockObject = new object();
+            var toSendCount = 10;
             var inProgressCount = 0;
             var maxInProgressCount = 0;
+            var totalSentCount = 0;
+            var tcs = new TaskCompletionSource<bool>();
+            var cts = new CancellationTokenSource(3000); // prevent wait forever
+            cts.Token.Register(() => tcs.SetResult(false));
 
             void SendStarted(IConnection _)
             {
@@ -112,10 +117,13 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
                 lock (lockObject)
                 {
                     inProgressCount--;
+                    totalSentCount++;
+                    if (totalSentCount == toSendCount)
+                        tcs.SetResult(true);
                 }
             }
 
-            var operations = Enumerable.Range(1, 10)
+            var operations = Enumerable.Range(1, toSendCount)
                 .Select(_ => new FakeOperation
                 {
                     Delay = TimeSpan.FromMilliseconds(100),
@@ -128,7 +136,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             var tasks = operations.Select(p => pool.SendAsync(p)).ToList();
 
-            await Task.WhenAll(tasks);
+            Assert.True(await tcs.Task); // allow consumers to work
 
             // Assert
 
@@ -149,9 +157,14 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             await pool.InitializeAsync();
 
+            var toSendCount = 10;
             var lockObject = new object();
             var inProgressCount = 0;
             var maxInProgressCount = 0;
+            var totalSentCount = 0;
+            var tcs = new TaskCompletionSource<bool>();
+            var cts = new CancellationTokenSource(3000); // prevent wait forever
+            cts.Token.Register(() => tcs.SetResult(false));
 
             void SendStarted(IConnection _)
             {
@@ -167,10 +180,13 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
                 lock (lockObject)
                 {
                     inProgressCount--;
+                    totalSentCount++;
+                    if (totalSentCount == toSendCount)
+                        tcs.SetResult(true);
                 }
             }
 
-            var operations = Enumerable.Range(1, 10)
+            var operations = Enumerable.Range(1, toSendCount)
                 .Select(_ => new FakeOperation
                 {
                     Delay = TimeSpan.FromMilliseconds(100),
@@ -183,7 +199,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             var tasks = operations.Select(p => pool.SendAsync(p)).ToList();
 
-            await Task.WhenAll(tasks);
+            Assert.True(await tcs.Task); // allow consumers to work
 
             // Assert
 
@@ -236,6 +252,8 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             // Act
 
             await pool.SendAsync(operation);
+            await Task.Delay(100); // allow consumers to work
+
             // Assert
 
             Assert.Equal(2ul, connectionCount);
