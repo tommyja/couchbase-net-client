@@ -4,10 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Couchbase.Core.DI;
 using Couchbase.Core.IO.Operations;
 using Couchbase.Core.Logging;
-using Couchbase.Utils;
 using Microsoft.Extensions.Logging;
 using Exception = System.Exception;
 
@@ -26,11 +24,11 @@ namespace Couchbase.Core.IO.Connections.DataFlow
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly SemaphoreSlim _lock = new SemaphoreSlim(1);
 
-        private readonly List<(IConnection Connection, ActionBlock<SendOperationRequest> Block)> _connections =
-            new List<(IConnection Connection, ActionBlock<SendOperationRequest> Block)>();
+        private readonly List<(IConnection Connection, ActionBlock<IOperation> Block)> _connections =
+            new List<(IConnection Connection, ActionBlock<IOperation> Block)>();
 
-        private readonly BufferBlock<SendOperationRequest> _sendQueue =
-            new BufferBlock<SendOperationRequest>(new DataflowBlockOptions
+        private readonly BufferBlock<IOperation> _sendQueue =
+            new BufferBlock<IOperation>(new DataflowBlockOptions
             {
                 BoundedCapacity = 1024
             });
@@ -91,26 +89,43 @@ namespace Couchbase.Core.IO.Connections.DataFlow
         public override Task SendAsync(IOperation operation, CancellationToken cancellationToken = default)
         {
             EnsureNotDisposed();
-
-            var operationRequest = new SendOperationRequest(operation, cancellationToken);
+            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, operation.Token);
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+            IDisposable registration = null;
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+            registration = linkedCts.Token.Register(() =>
+            {
+                operation.Cancel();
+                registration?.Dispose();
+            });
 
             if (Size > 0)
             {
-                _sendQueue.Post(operationRequest);
+                _logger.LogDebug($"Connection pool size > 1 SendAsync posting request:{operation}");
+                _sendQueue.Post(operation);
 
-                return operationRequest.CompletionTask;
+                return Task.CompletedTask;
             }
 
             // We had all connections die earlier and fail to restart, we need to restart them
-            return CleanupDeadConnectionsAsync().ContinueWith(_ =>
+            return CleanupDeadConnectionsAsync().ContinueWith(t =>
             {
-                if (!_cts.IsCancellationRequested)
+                //if (t.Exception != null)
+                //    throw t.Exception;
+                _logger.LogDebug($"SendAsync CleanupDeadConnectionsAsync ContinueWith cts.Cancelled{_cts.IsCancellationRequested} request:{operation}");
+                if (linkedCts.IsCancellationRequested)
+                {
+                    _logger.LogDebug($"SendAsync CleanupDeadConnectionsAsync cancelling  request.Operation");
+                    operation.Cancel();
+                }
+                else
                 {
                     // Requeue the request
                     // Note: always requeues even if cleanup fails
                     // Since the exception on the task is ignored, we're also eating the exception
 
-                    _sendQueue.Post(operationRequest);
+                    _logger.LogDebug($"SendAsync posting request:{operation}");
+                    _sendQueue.Post(operation);
                 }
             }, cancellationToken);
         }
@@ -251,7 +266,7 @@ namespace Couchbase.Core.IO.Connections.DataFlow
                 var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
                 // Create an ActionBlock to receive messages for this connection
-                var block = new ActionBlock<SendOperationRequest>(BuildHandler(connection),
+                var block = new ActionBlock<IOperation>(BuildHandler(connection),
                     new ExecutionDataflowBlockOptions
                     {
                         BoundedCapacity = 1, // Don't let the action block queue up requests, they should queue in the buffer block
@@ -292,29 +307,42 @@ namespace Couchbase.Core.IO.Connections.DataFlow
         /// </summary>
         /// <param name="connection">The connection.</param>
         /// <returns>The handler.</returns>
-        private Func<SendOperationRequest, Task> BuildHandler(IConnection connection)
+        private Func<IOperation, Task> BuildHandler(IConnection connection)
         {
             return request =>
             {
+                _logger.LogDebug($"BuildHandler: cts.Cancelled{_cts.IsCancellationRequested} request:{request} dead:{connection.IsDead}");
+
+                // ignore request that timed out or was cancelled while in queue
+                if (request.Completed.IsCompleted)
+                    return Task.CompletedTask;
                 if (connection.IsDead)
                 {
                     // We need to return the task from CleanupDeadConnectionsAsync
                     // Because as long as the task is not completed, this connection won't
                     // receive more requests. We need to wait until the dead connection is
                     // unlinked to make sure no more bad requests hit it.
-                    return CleanupDeadConnectionsAsync().ContinueWith(_ =>
+                    return CleanupDeadConnectionsAsync().ContinueWith(t =>
                     {
-                        if (!_cts.IsCancellationRequested)
+                        _logger.LogDebug($"BuildHandler CleanupDeadConnectionsAsync ContinueWith cts.Cancelled{_cts.IsCancellationRequested} request:{request}");
+                        if (_cts.IsCancellationRequested || request.Token.IsCancellationRequested)
+                        {
+                            _logger.LogDebug($"BuildHandler cancelling: request.Operation");
+                            request.Cancel();
+                        }
+                        else
                         {
                             // Requeue the request for a different connection
                             // Note: always requeues even if cleanup fails
                             // Since the exception on the task is ignored, we're also eating the exception
 
+                            _logger.LogDebug($"BuildHandler Requeueing: {request}");
                             _sendQueue.Post(request);
                         }
                     }, _cts.Token);
                 }
 
+                _logger.LogDebug($"SendAsync request: {request}");
                 return request.SendAsync(connection);
             };
         }
