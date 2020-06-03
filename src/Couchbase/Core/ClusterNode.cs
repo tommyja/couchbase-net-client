@@ -39,7 +39,7 @@ namespace Couchbase.Core
         private Uri _searchUri;
         private Uri _viewsUri;
         private NodeAdapter _nodesAdapter;
-        private readonly ObservableCollection<IPEndPoint> _keyEndPoints  = new ObservableCollection<IPEndPoint>();
+        private readonly ObservableCollection<IPEndPoint> _keyEndPoints = new ObservableCollection<IPEndPoint>();
         private readonly string _cachedToString;
 
         public ClusterNode(ClusterContext context, IConnectionPoolFactory connectionPoolFactory, ILogger<ClusterNode> logger, ITypeTranscoder transcoder, ICircuitBreaker circuitBreaker, ISaslMechanismFactory saslMechanismFactory, IRedactor redactor, IPEndPoint endPoint)
@@ -56,7 +56,7 @@ namespace Couchbase.Core
 
             KeyEndPoints = new ReadOnlyObservableCollection<IPEndPoint>(_keyEndPoints);
             UpdateKeyEndPoints();
-            ((INotifyCollectionChanged) _keyEndPoints).CollectionChanged += (_, e) => OnKeyEndPointsChanged(e);
+            ((INotifyCollectionChanged)_keyEndPoints).CollectionChanged += (_, e) => OnKeyEndPointsChanged(e);
 
             if (connectionPoolFactory == null)
             {
@@ -152,7 +152,7 @@ namespace Couchbase.Core
 
         public bool Supports(ServerFeatures feature)
         {
-            return ServerFeatures.Contains((short) feature);
+            return ServerFeatures.Contains((short)feature);
         }
 
         public DateTime? LastViewActivity { get; private set; }
@@ -200,12 +200,12 @@ namespace Couchbase.Core
 
             if (_context.ClusterOptions.EnableMutationTokens)
             {
-                features.Add((short) IO.Operations.ServerFeatures.MutationSeqno);
+                features.Add((short)IO.Operations.ServerFeatures.MutationSeqno);
             }
 
             if (_context.ClusterOptions.EnableOperationDurationTracing)
             {
-                features.Add((short) IO.Operations.ServerFeatures.ServerDuration);
+                features.Add((short)IO.Operations.ServerFeatures.ServerDuration);
             }
 
             using var heloOp = new Hello
@@ -253,7 +253,7 @@ namespace Couchbase.Core
             var configResult = configOp.GetResultWithValue();
             var config = configResult.Content;
 
-            if (config != null && EndPoint!= null)
+            if (config != null && EndPoint != null)
             {
                 config.ReplacePlaceholderWithBootstrapHost(BootstrapEndpoint.Host);
             }
@@ -401,7 +401,7 @@ namespace Couchbase.Core
             }
         }
 
-        private async Task ExecuteOp(Func<IOperation, object, CancellationToken, Task> sender, IOperation op, object state, CancellationToken token = default(CancellationToken),
+        private async Task ExecuteOp(Action<IOperation, object, CancellationToken> sender, IOperation op, object state, CancellationToken token = default(CancellationToken),
             TimeSpan? timeout = null)
         {
             _logger.LogDebug("Executing op {opcode} with key {key} and opaque {opaque}.", op.OpCode, _redactor.UserData(op.Key), op.Opaque);
@@ -409,14 +409,12 @@ namespace Couchbase.Core
             CancellationTokenSource cts = null;
             try
             {
-                if (token == CancellationToken.None)
-                {
-                    cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    cts.CancelAfter(GetTimeout(timeout, op));
-                    token = cts.Token;
-                }
+                cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                cts.CancelAfter(GetTimeout(timeout, op));
+                token = cts.Token;
 
-                await sender(op, state, token).ConfigureAwait(false);
+                // I dont think this needs to be awaited, sender does not need to return a task, 
+                sender(op, state, token);
 
                 var status = await op.Completed.ConfigureAwait(false);
 
@@ -437,7 +435,7 @@ namespace Couchbase.Core
                         return;
                     }
 
-                    var code = (short) status;
+                    var code = (short)status;
                     if (!ErrorMap.TryGetGetErrorCode(code, out var errorCode))
                     {
                         _logger.LogWarning("Unexpected Status for KeyValue operation not found in Error Map: 0x{code}", code.ToString("X4"));
@@ -489,7 +487,7 @@ namespace Couchbase.Core
             TimeSpan? timeout = null)
         {
             // op and connectionPool come back via lambda parameters to prevent an extra closure heap allocation
-            return ExecuteOp((op2, state, effectiveToken) => ((IConnectionPool) state).SendAsync(op2, effectiveToken),
+            return ExecuteOp((op2, state, effectiveToken) => ((IConnectionPool)state).SendAsync(op2, effectiveToken),
                 op, connectionPool, token);
         }
 
@@ -497,7 +495,7 @@ namespace Couchbase.Core
             TimeSpan? timeout = null)
         {
             // op and connection come back via lambda parameters to prevent an extra closure heap allocation
-            return ExecuteOp((op2, state, effectiveToken) => op2.SendAsync((IConnection) state, effectiveToken),
+            return ExecuteOp((op2, state, effectiveToken) => op2.SendAsync((IConnection)state, effectiveToken),
                 op, connection, token);
         }
 
@@ -538,7 +536,7 @@ namespace Couchbase.Core
             }
             catch (DocumentNotFoundException)
             {
-                var message = "The Bucket [" + _redactor.MetaData(bucketName)+ "] could not be selected. Either it does not exist, " +
+                var message = "The Bucket [" + _redactor.MetaData(bucketName) + "] could not be selected. Either it does not exist, " +
                               "is unavailable or the node itself does not have the Data service enabled.";
 
                 _logger.LogError(LoggingEvents.BootstrapEvent, message);
@@ -567,16 +565,16 @@ namespace Couchbase.Core
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
             if (obj.GetType() != this.GetType()) return false;
-            return Equals((ClusterNode) obj);
+            return Equals((ClusterNode)obj);
         }
 
         public override int GetHashCode()
         {
-            #if NETSTANDARD2_0
-            return new {EndPoint, _id}.GetHashCode();
-            #else
+#if NETSTANDARD2_0
+            return new { EndPoint, _id }.GetHashCode();
+#else
             return System.HashCode.Combine(EndPoint, _id);
-            #endif
+#endif
         }
         #endregion
 
