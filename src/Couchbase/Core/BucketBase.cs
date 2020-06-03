@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ using Couchbase.Core.Logging;
 
 namespace Couchbase.Core
 {
+    [DebuggerDisplay("Name = {Name}, BucketType = {BucketType}")]
     internal abstract class BucketBase : IBucket, IConfigUpdateEventSink, IBootstrappable
     {
         private ClusterState _clusterState;
@@ -65,6 +67,9 @@ namespace Couchbase.Core
         public BucketType BucketType { get; protected set; }
 
         public string Name { get; protected set; }
+
+        /// <inheritdoc />
+        public ICluster Cluster => Context.Cluster;
 
         #region Scopes
 
@@ -129,7 +134,7 @@ namespace Couchbase.Core
             var subject = this as IBootstrappable;
 
             //The server supports collections so build them from the manifest
-            if (Context.SupportsCollections && subject.IsBootstrapped)
+            if (Context.SupportsCollections && subject.IsBootstrapped && BucketType != BucketType.Memcached)
             {
                 foreach (var scope in _scopeFactory.CreateScopes(this, Manifest!))
                 {
