@@ -236,7 +236,6 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             // Act
 
             await pool.SendAsync(operation);
-
             // Assert
 
             Assert.Equal(2ul, connectionCount);
