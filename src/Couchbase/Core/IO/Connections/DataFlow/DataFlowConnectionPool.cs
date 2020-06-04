@@ -95,27 +95,22 @@ namespace Couchbase.Core.IO.Connections.DataFlow
 #pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             registration = linkedCts.Token.Register(() =>
             {
-                operation.Cancel();
+                operation.Cancel(); // cancel the operation so that its Completed task cast is completed
                 registration?.Dispose();
             });
 
             if (Size > 0)
             {
-                _logger.LogDebug($"Connection pool size > 1 SendAsync posting request:{operation}");
                 _sendQueue.Post(operation);
 
                 return Task.CompletedTask;
             }
 
             // We had all connections die earlier and fail to restart, we need to restart them
-            return CleanupDeadConnectionsAsync().ContinueWith(t =>
+            return CleanupDeadConnectionsAsync().ContinueWith(_ =>
             {
-                //if (t.Exception != null)
-                //    throw t.Exception;
-                _logger.LogDebug($"SendAsync CleanupDeadConnectionsAsync ContinueWith cts.Cancelled{_cts.IsCancellationRequested} request:{operation}");
                 if (linkedCts.IsCancellationRequested)
                 {
-                    _logger.LogDebug($"SendAsync CleanupDeadConnectionsAsync cancelling  request.Operation");
                     operation.Cancel();
                 }
                 else
@@ -123,8 +118,6 @@ namespace Couchbase.Core.IO.Connections.DataFlow
                     // Requeue the request
                     // Note: always requeues even if cleanup fails
                     // Since the exception on the task is ignored, we're also eating the exception
-
-                    _logger.LogDebug($"SendAsync posting request:{operation}");
                     _sendQueue.Post(operation);
                 }
             }, cancellationToken);
@@ -311,8 +304,6 @@ namespace Couchbase.Core.IO.Connections.DataFlow
         {
             return request =>
             {
-                _logger.LogDebug($"BuildHandler: cts.Cancelled{_cts.IsCancellationRequested} request:{request} dead:{connection.IsDead}");
-
                 // ignore request that timed out or was cancelled while in queue
                 if (request.Completed.IsCompleted)
                     return Task.CompletedTask;
@@ -322,12 +313,10 @@ namespace Couchbase.Core.IO.Connections.DataFlow
                     // Because as long as the task is not completed, this connection won't
                     // receive more requests. We need to wait until the dead connection is
                     // unlinked to make sure no more bad requests hit it.
-                    return CleanupDeadConnectionsAsync().ContinueWith(t =>
+                    return CleanupDeadConnectionsAsync().ContinueWith(_ =>
                     {
-                        _logger.LogDebug($"BuildHandler CleanupDeadConnectionsAsync ContinueWith cts.Cancelled{_cts.IsCancellationRequested} request:{request}");
                         if (_cts.IsCancellationRequested || request.Token.IsCancellationRequested)
                         {
-                            _logger.LogDebug($"BuildHandler cancelling: request.Operation");
                             request.Cancel();
                         }
                         else
@@ -335,14 +324,11 @@ namespace Couchbase.Core.IO.Connections.DataFlow
                             // Requeue the request for a different connection
                             // Note: always requeues even if cleanup fails
                             // Since the exception on the task is ignored, we're also eating the exception
-
-                            _logger.LogDebug($"BuildHandler Requeueing: {request}");
                             _sendQueue.Post(request);
                         }
                     }, _cts.Token);
                 }
 
-                _logger.LogDebug($"SendAsync request: {request}");
                 return request.SendAsync(connection);
             };
         }
