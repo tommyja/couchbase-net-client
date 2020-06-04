@@ -84,6 +84,37 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
         }
 
         [Fact]
+        public async Task SendAsync_SingleOpCancelledBeforeDequeued_ThrowsCancelledException()
+        {
+            // Arrange
+
+            var connection = new Mock<IConnection>();
+            var connectionFactory = new Mock<IConnectionFactory>();
+            connection.Setup(m => m.IsDead).Returns(true);
+            connectionFactory
+                .Setup(m => m.CreateAndConnectAsync(_ipEndPoint, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() => connection.Object);
+
+            var pool = CreatePool(connectionFactory: connectionFactory.Object);
+            pool.MinimumSize = 1;
+            pool.MaximumSize = 1;
+
+            await pool.InitializeAsync();
+
+            var operation = new FakeOperation();
+
+            // Act
+
+            var sendTask = pool.SendAsync(operation, new CancellationTokenSource(50).Token);
+            await Task.WhenAny(Task.Delay(3000), operation.Completed);
+
+            // Assert
+
+            Assert.True(operation.Completed.IsCompleted);
+            Assert.True(operation.Completed.IsCanceled);
+        }
+
+        [Fact]
         public async Task SendAsync_SingleConnection_NotSentSimultaneously()
         {
             // Arrange
@@ -100,8 +131,8 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             var maxInProgressCount = 0;
             var totalSentCount = 0;
             var tcs = new TaskCompletionSource<bool>();
-            var cts = new CancellationTokenSource(3000); // prevent wait forever
-            cts.Token.Register(() => tcs.SetResult(false));
+            var cts = new CancellationTokenSource(10000); // prevent wait forever
+            cts.Token.Register(() => tcs.TrySetResult(false));
 
             void SendStarted(IConnection _)
             {
@@ -119,7 +150,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
                     inProgressCount--;
                     totalSentCount++;
                     if (totalSentCount == toSendCount)
-                        tcs.SetResult(true);
+                        tcs.TrySetResult(true);
                 }
             }
 
@@ -163,8 +194,8 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             var maxInProgressCount = 0;
             var totalSentCount = 0;
             var tcs = new TaskCompletionSource<bool>();
-            var cts = new CancellationTokenSource(3000); // prevent wait forever
-            cts.Token.Register(() => tcs.SetResult(false));
+            var cts = new CancellationTokenSource(10000); // prevent wait forever
+            cts.Token.Register(() => tcs.TrySetResult(false));
 
             void SendStarted(IConnection _)
             {
@@ -182,7 +213,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
                     inProgressCount--;
                     totalSentCount++;
                     if (totalSentCount == toSendCount)
-                        tcs.SetResult(true);
+                        tcs.TrySetResult(true);
                 }
             }
 
