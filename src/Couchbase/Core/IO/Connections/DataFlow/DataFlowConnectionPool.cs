@@ -89,11 +89,11 @@ namespace Couchbase.Core.IO.Connections.DataFlow
         public override Task SendAsync(IOperation operation, CancellationToken cancellationToken = default)
         {
             EnsureNotDisposed();
-            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, operation.Token);
+            //var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, operation.Token);
 #pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             IDisposable registration = null;
 #pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
-            registration = linkedCts.Token.Register(() =>
+            registration = cancellationToken.Register(() =>
             {
                 operation.Cancel(); // cancel the operation so that its Completed task cast is completed
                 registration?.Dispose();
@@ -109,7 +109,7 @@ namespace Couchbase.Core.IO.Connections.DataFlow
             // We had all connections die earlier and fail to restart, we need to restart them
             return CleanupDeadConnectionsAsync().ContinueWith(_ =>
             {
-                if (linkedCts.IsCancellationRequested)
+                if (cancellationToken.IsCancellationRequested)
                 {
                     operation.Cancel();
                 }
@@ -315,7 +315,7 @@ namespace Couchbase.Core.IO.Connections.DataFlow
                     // unlinked to make sure no more bad requests hit it.
                     return CleanupDeadConnectionsAsync().ContinueWith(_ =>
                     {
-                        if (_cts.IsCancellationRequested || request.Token.IsCancellationRequested)
+                        if (_cts.IsCancellationRequested)
                         {
                             request.Cancel();
                         }
