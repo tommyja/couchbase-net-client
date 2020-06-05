@@ -89,10 +89,7 @@ namespace Couchbase.Core.IO.Connections.DataFlow
         public override Task SendAsync(IOperation operation, CancellationToken cancellationToken = default)
         {
             EnsureNotDisposed();
-            //var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, operation.Token);
-#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
-            IDisposable registration = null;
-#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+            CancellationTokenRegistration? registration = null;
             registration = cancellationToken.Register(() =>
             {
                 operation.Cancel(); // cancel the operation so that its Completed task cast is completed
