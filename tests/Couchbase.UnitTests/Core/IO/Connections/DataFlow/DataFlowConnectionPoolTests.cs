@@ -64,23 +64,24 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
         {
             // Arrange
 
+            var tcs = new TaskCompletionSource<bool>();
+            var cts = new CancellationTokenSource(10000); // prevent wait forever
+            cts.Token.Register(() => tcs.TrySetResult(false));  // set result to false on timeout
             var pool = CreatePool();
             await pool.InitializeAsync();
 
-            var wasSent = false;
             var operation = new FakeOperation
             {
-                SendStarted = _ => wasSent = true
+                SendStarted = _ => tcs.TrySetResult(true)
             };
 
             // Act
 
             await pool.SendAsync(operation);
-            await Task.Delay(100); // allow consumers to work
 
             // Assert
 
-            Assert.True(wasSent);
+            Assert.True(await tcs.Task, "Send was not started before timeout");
         }
 
         [Fact]
@@ -131,8 +132,8 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             var maxInProgressCount = 0;
             var totalSentCount = 0;
             var tcs = new TaskCompletionSource<bool>();
-            var cts = new CancellationTokenSource(10000); // prevent wait forever
-            cts.Token.Register(() => tcs.TrySetResult(false));
+            var cts = new CancellationTokenSource(10000);
+            cts.Token.Register(() => tcs.TrySetResult(false)); // set result to false on timeout
 
             void SendStarted(IConnection _)
             {
@@ -167,10 +168,9 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             var tasks = operations.Select(p => pool.SendAsync(p)).ToList();
 
-            Assert.True(await tcs.Task); // allow consumers to work
-
             // Assert
 
+            Assert.True(await tcs.Task, "All sends were not started before timeout");
             Assert.Equal(1, maxInProgressCount);
             Assert.Equal(0, inProgressCount);
         }
@@ -195,7 +195,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             var totalSentCount = 0;
             var tcs = new TaskCompletionSource<bool>();
             var cts = new CancellationTokenSource(10000); // prevent wait forever
-            cts.Token.Register(() => tcs.TrySetResult(false));
+            cts.Token.Register(() => tcs.TrySetResult(false));  // set result to false on timeout
 
             void SendStarted(IConnection _)
             {
@@ -230,10 +230,9 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             var tasks = operations.Select(p => pool.SendAsync(p)).ToList();
 
-            Assert.True(await tcs.Task); // allow consumers to work
-
             // Assert
 
+            Assert.True(await tcs.Task, "All sends were not started before timeout");
             Assert.Equal(connections, maxInProgressCount);
             Assert.Equal(0, inProgressCount);
         }
@@ -244,6 +243,9 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             // Arrange
 
             var connectionCount = 0ul;
+            var tcs = new TaskCompletionSource<bool>();
+            var cts = new CancellationTokenSource(10000); // prevent wait forever
+            cts.Token.Register(() => tcs.TrySetResult(false));  // set result to false on timeout
 
             var connectionFactoryMock = new Mock<IConnectionFactory>();
             connectionFactoryMock
@@ -277,13 +279,17 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
             var operationConnectionId = 0ul;
             var operation = new FakeOperation
             {
-                SendStarted = connection => operationConnectionId = connection.ConnectionId
+                SendStarted = connection =>
+                {
+                    operationConnectionId = connection.ConnectionId;
+                    tcs.TrySetResult(true);
+                }
             };
 
             // Act
 
             await pool.SendAsync(operation);
-            await Task.Delay(100); // allow consumers to work
+            Assert.True(await tcs.Task, "Send was not started before timeout");
 
             // Assert
 
