@@ -1,12 +1,9 @@
 using System;
-using System.Buffers;
-using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Couchbase.Core.Configuration.Server;
 using Couchbase.Core.IO.Connections;
-using Couchbase.Core.IO.Operations.Errors;
 using Couchbase.Core.IO.Transcoders;
 using Couchbase.Core.Retry;
 
@@ -69,6 +66,9 @@ namespace Couchbase.Core.IO.Operations
         Task<ResponseStatus> Completed { get; }
 
         bool CanRetry();
+
+        // Reset the completion task
+        void StartRetry();
 
         IOperationResult GetResult();
 

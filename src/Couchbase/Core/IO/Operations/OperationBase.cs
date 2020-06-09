@@ -26,7 +26,7 @@ namespace Couchbase.Core.IO.Operations
         private static readonly ITypeTranscoder DefaultTranscoder = new LegacyTranscoder();
         private IMemoryOwner<byte> _data;
 
-        private readonly TaskCompletionSource<ResponseStatus> _completed = new TaskCompletionSource<ResponseStatus>();
+        private TaskCompletionSource<ResponseStatus> _completed = new TaskCompletionSource<ResponseStatus>();
 
         protected OperationBase()
         {
@@ -473,6 +473,11 @@ namespace Couchbase.Core.IO.Operations
         public void Cancel()
         {
             _completed.TrySetCanceled();
+        }
+
+        public void StartRetry()
+        {
+            _completed = new TaskCompletionSource<ResponseStatus>();
         }
 
         private void HandleOperationCancelled(object state)

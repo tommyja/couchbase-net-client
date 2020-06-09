@@ -1,8 +1,9 @@
+using Couchbase.Core.Retry;
 using System;
 
 namespace Couchbase.Core.Exceptions
 {
-    public class TemporaryFailureException : CouchbaseException
+    public class TemporaryFailureException : CouchbaseException, IRetryable
     {
         public TemporaryFailureException() { }
 
