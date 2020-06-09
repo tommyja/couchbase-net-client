@@ -156,6 +156,7 @@ namespace Couchbase.Core.Retry
                                     operation.Key, reason);
 
                                 await backoff.Delay(operation).ConfigureAwait(false);
+                                operation.StartRetry();
                                 continue;
                             }
 
@@ -168,6 +169,7 @@ namespace Couchbase.Core.Retry
                                     operation.Key, reason);
 
                                 await Task.Delay(action.DurationValue.Value, token).ConfigureAwait(false);
+                                operation.StartRetry();
                             }
                             else
                             {

@@ -86,7 +86,7 @@ namespace Couchbase.Core.IO.Connections.DataFlow
         }
 
         /// <inheritdoc />
-        public override Task SendAsync(IOperation operation, CancellationToken cancellationToken = default)
+        public override void QueueSend(IOperation operation, CancellationToken cancellationToken = default)
         {
             EnsureNotDisposed();
             IDisposable? registration = null;
@@ -100,11 +100,11 @@ namespace Couchbase.Core.IO.Connections.DataFlow
             {
                 _sendQueue.Post(operation);
 
-                return Task.CompletedTask;
+                return;
             }
 
             // We had all connections die earlier and fail to restart, we need to restart them
-            return CleanupDeadConnectionsAsync().ContinueWith(_ =>
+            CleanupDeadConnectionsAsync().ContinueWith(_ =>
             {
                 if (cancellationToken.IsCancellationRequested)
                 {

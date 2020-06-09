@@ -55,7 +55,7 @@ namespace Couchbase.Core.IO.Connections
         /// <remarks>
         /// The task is completed when the operation is sent, it does not wait for a response.
         /// </remarks>
-        Task SendAsync(IOperation op, CancellationToken cancellationToken = default);
+        void QueueSend(IOperation op, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Requests that the connections in the pool be frozen, with no connections being added or removed.

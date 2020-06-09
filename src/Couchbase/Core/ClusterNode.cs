@@ -367,7 +367,7 @@ namespace Couchbase.Core
                         _logger.LogDebug("CB: Sending {opaque} to {endPoint}.", op.Opaque,
                             _redactor.SystemData(EndPoint));
 
-                        await ExecuteOp(ConnectionPool, op, token).ConfigureAwait(false);
+                        await ExecuteOp(ConnectionPool, op, token, timeout).ConfigureAwait(false);
                         _circuitBreaker.MarkSuccess();
                     }
                     catch (Exception e)
@@ -502,8 +502,8 @@ namespace Couchbase.Core
             TimeSpan? timeout = null)
         {
             // op and connectionPool come back via lambda parameters to prevent an extra closure heap allocation
-            return ExecuteOp((op2, state, effectiveToken) => ((IConnectionPool)state).SendAsync(op2, effectiveToken),
-                op, connectionPool, token);
+            return ExecuteOp((op2, state, effectiveToken) => ((IConnectionPool)state).QueueSend(op2, effectiveToken),
+                op, connectionPool, token, timeout);
         }
 
         public Task ExecuteOp(IConnection connection, IOperation op, CancellationToken token = default(CancellationToken),
@@ -511,7 +511,7 @@ namespace Couchbase.Core
         {
             // op and connection come back via lambda parameters to prevent an extra closure heap allocation
             return ExecuteOp((op2, state, effectiveToken) => op2.SendAsync((IConnection)state, effectiveToken),
-                op, connection, token);
+                op, connection, token, timeout);
         }
 
         private TimeSpan GetTimeout(TimeSpan? optionsTimeout, IOperation op)
