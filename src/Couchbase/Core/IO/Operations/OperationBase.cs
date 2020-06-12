@@ -76,13 +76,14 @@ namespace Couchbase.Core.IO.Operations
 
         public virtual void Reset()
         {
-            Reset(ResponseStatus.Success);
+            Reset(ResponseStatus.None);
         }
 
         public virtual void Reset(ResponseStatus status)
         {
             _data?.Dispose();
             _data = null;
+            _completed = new TaskCompletionSource<ResponseStatus>();
 
             Header = new OperationHeader
             {
@@ -473,11 +474,6 @@ namespace Couchbase.Core.IO.Operations
         public void Cancel()
         {
             _completed.TrySetCanceled();
-        }
-
-        public void StartRetry()
-        {
-            _completed = new TaskCompletionSource<ResponseStatus>();
         }
 
         private void HandleOperationCancelled(object state)

@@ -67,9 +67,6 @@ namespace Couchbase.Core.IO.Operations
 
         bool CanRetry();
 
-        // Reset the completion task
-        void StartRetry();
-
         IOperationResult GetResult();
 
         IOperation Clone();
