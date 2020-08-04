@@ -272,7 +272,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections
                 throw new NotImplementedException();
             }
 
-            public override Task SendAsync(IOperation operation, CancellationToken cancellationToken = default)
+            public override void QueueSend(IOperation operation, CancellationToken cancellationToken = default)
             {
                 throw new NotImplementedException();
             }

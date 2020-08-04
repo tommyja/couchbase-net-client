@@ -54,7 +54,7 @@ namespace Couchbase.Core.IO.Connections
         }
 
         /// <inheritdoc />
-        public override async Task SendAsync(IOperation operation, CancellationToken cancellationToken = default)
+        public override async void QueueSend(IOperation operation, CancellationToken cancellationToken = default)
         {
             if (_connection == null)
             {

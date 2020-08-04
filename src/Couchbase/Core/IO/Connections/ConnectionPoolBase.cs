@@ -99,7 +99,7 @@ namespace Couchbase.Core.IO.Connections
         public abstract Task InitializeAsync(CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public abstract Task SendAsync(IOperation operation, CancellationToken cancellationToken = default);
+        public abstract void QueueSend(IOperation operation, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
         public abstract IEnumerable<IConnection> GetConnections();

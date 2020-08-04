@@ -47,15 +47,11 @@ namespace Couchbase.Core.IO.Connections
         Task InitializeAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Send an operation via a connection in the pool.
+        /// Queues an opertion for sending via a connection in the pool.
         /// </summary>
         /// <param name="op"><see cref="IOperation"/> to send.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>Task to observe for completion.</returns>
-        /// <remarks>
-        /// The task is completed when the operation is sent, it does not wait for a response.
-        /// </remarks>
-        Task SendAsync(IOperation op, CancellationToken cancellationToken = default);
+        void QueueSend(IOperation op, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Requests that the connections in the pool be frozen, with no connections being added or removed.

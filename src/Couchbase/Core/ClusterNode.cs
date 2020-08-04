@@ -502,7 +502,7 @@ namespace Couchbase.Core
             TimeSpan? timeout = null)
         {
             // op and connectionPool come back via lambda parameters to prevent an extra closure heap allocation
-            return ExecuteOp((op2, state, effectiveToken) => ((IConnectionPool)state).SendAsync(op2, effectiveToken),
+            return ExecuteOp((op2, state, effectiveToken) => ((IConnectionPool)state).QueueSend(op2, effectiveToken),
                 op, connectionPool, token);
         }
 

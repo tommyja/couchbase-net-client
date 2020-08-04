@@ -77,7 +77,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             // Act
 
-            await pool.SendAsync(operation);
+            pool.QueueSend(operation);
 
             // Assert
 
@@ -106,7 +106,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             // Act
 
-            var sendTask = pool.SendAsync(operation, new CancellationTokenSource(50).Token);
+            pool.QueueSend(operation, new CancellationTokenSource(50).Token);
             await Task.WhenAny(Task.Delay(3000), operation.Completed);
 
             // Assert
@@ -166,7 +166,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             // Act
 
-            var tasks = operations.Select(p => pool.SendAsync(p)).ToList();
+            operations.ForEach(p => pool.QueueSend(p));
 
             // Assert
 
@@ -228,7 +228,7 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             // Act
 
-            var tasks = operations.Select(p => pool.SendAsync(p)).ToList();
+            operations.ForEach(p => pool.QueueSend(p));
 
             // Assert
 
@@ -288,11 +288,11 @@ namespace Couchbase.UnitTests.Core.IO.Connections.DataFlow
 
             // Act
 
-            await pool.SendAsync(operation);
-            Assert.True(await tcs.Task, "Send was not started before timeout");
+            pool.QueueSend(operation);
 
             // Assert
 
+            Assert.True(await tcs.Task, "Send was not started before timeout");
             Assert.Equal(2ul, connectionCount);
             Assert.Equal(2ul, operationConnectionId);
         }

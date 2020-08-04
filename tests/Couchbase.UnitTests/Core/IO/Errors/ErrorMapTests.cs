@@ -34,8 +34,8 @@ namespace Couchbase.UnitTests.Core.IO.Errors
 
             var mockConnectionPool = new Mock<IConnectionPool>();
             mockConnectionPool
-                .Setup(m => m.SendAsync(It.IsAny<IOperation>(), It.IsAny<CancellationToken>()))
-                .Returns((IOperation operation, CancellationToken _) => operation.SendAsync(mockConnection.Object));
+                .Setup(m => m.QueueSend(It.IsAny<IOperation>(), It.IsAny<CancellationToken>()))
+                .Callback((IOperation operation, CancellationToken _) => operation.SendAsync(mockConnection.Object));
 
             var mockConnectionPoolFactory = new Mock<IConnectionPoolFactory>();
             mockConnectionPoolFactory
